@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Size Converter</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
+        body { background: #f5f7ff; color: #333; line-height: 1.6; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        header { text-align: center; margin-bottom: 30px; }
+        h1 { color: #4361ee; margin-bottom: 10px; }
+        .card { background: white; border-radius: 10px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .upload-area { border: 2px dashed #4361ee; border-radius: 8px; padding: 30px; text-align: center; cursor: pointer; margin-bottom: 20px; }
+        .upload-area i { font-size: 40px; color: #4361ee; margin-bottom: 10px; }
+        #file-input { display: none; }
+        #image-preview { max-width: 100%; max-height: 200px; display: none; margin: 0 auto; }
+        .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; }
+        .control-group label { display: block; margin-bottom: 5px; font-weight: 600; }
+        .control-group input, .control-group select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
+        .ratio-lock { display: flex; align-items: center; gap: 8px; margin-bottom: 15px; }
+        .presets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 15px; }
+        .preset-btn { padding: 8px; background: #f0f0f0; border: none; border-radius: 5px; cursor: pointer; }
+        .preset-btn.active { background: #4361ee; color: white; }
+        .actions { display: flex; gap: 10px; }
+        .btn { padding: 12px 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: 600; flex: 1; }
+        .btn-primary { background: #4361ee; color: white; }
+        .btn-success { background: #4bb543; color: white; }
+        .btn:disabled { background: #ccc; cursor: not-allowed; }
+        .ad { background: #f8f9fa; border-radius: 8px; padding: 15px; text-align: center; margin: 20px 0; }
+        footer { text-align: center; margin-top: 30px; color: #666; }
+        .toast { position: fixed; bottom: 20px; right: 20px; background: #4bb543; color: white; padding: 12px 20px; border-radius: 5px; display: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Image Size Converter</h1>
+            <p>Resize your images quickly and easily</p>
+        </header>
+        
+        <div class="ad">
+            <p><strong>Upgrade to Pro</strong> - Unlimited conversions & premium features</p>
+        </div>
+        
+        <div class="card">
+            <div class="upload-area" id="upload-area">
+                <i>📁</i>
+                <h3>Click to Upload Image</h3>
+                <p>JPG, PNG, WebP (Max 5MB)</p>
+                <input type="file" id="file-input" accept="image/*">
+            </div>
+            <img id="image-preview" alt="Preview">
+            
+            <div class="controls">
+                <div class="control-group">
+                    <label for="width">Width (px)</label>
+                    <input type="number" id="width" min="1" value="800">
+                </div>
+                <div class="control-group">
+                    <label for="height">Height (px)</label>
+                    <input type="number" id="height" min="1" value="600">
+                </div>
+            </div>
+            
+            <div class="ratio-lock">
+                <input type="checkbox" id="maintain-ratio" checked>
+                <label for="maintain-ratio">Maintain aspect ratio</label>
+            </div>
+            
+            <div class="control-group">
+                <label for="format">Output Format</label>
+                <select id="format">
+                    <option value="original">Original</option>
+                    <option value="jpeg">JPEG</option>
+                    <option value="png">PNG</option>
+                </select>
+            </div>
+            
+            <div class="presets">
+                <button class="preset-btn" data-width="1920" data-height="1080">HD</button>
+                <button class="preset-btn" data-width="1280" data-height="720">Social</button>
+                <button class="preset-btn" data-width="800" data-height="600">Web</button>
+                <button class="preset-btn" data-width="600" data-height="400">Blog</button>
+                <button class="preset-btn" data-width="400" data-height="300">Small</button>
+                <button class="preset-btn" data-width="150" data-height="150">Thumb</button>
+            </div>
+            
+            <div class="actions">
+                <button class="btn" id="reset-btn">Reset</button>
+                <button class="btn btn-primary" id="convert-btn" disabled>Convert</button>
+            </div>
+            
+            <div class="actions" style="margin-top: 10px;">
+                <button class="btn btn-success" id="download-btn" disabled>Download</button>
+            </div>
+        </div>
+        
+        <div class="ad">
+            <p><strong>Try Batch Processing</strong> - Convert multiple images at once</p>
+        </div>
+        
+        <footer>
+            <p>&copy; 2023 Image Converter Tool</p>
+        </footer>
+    </div>
+    
+    <div class="toast" id="toast">Image converted successfully!</div>
+
+    <script>
+        const fileInput = document.getElementById('file-input');
+        const uploadArea = document.getElementById('upload-area');
+        const imagePreview = document.getElementById('image-preview');
+        const widthInput = document.getElementById('width');
+        const heightInput = document.getElementById('height');
+        const maintainRatio = document.getElementById('maintain-ratio');
+        const formatSelect = document.getElementById('format');
+        const presetButtons = document.querySelectorAll('.preset-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const convertBtn = document.getElementById('convert-btn');
+        const downloadBtn = document.getElementById('download-btn');
+        const toast = document.getElementById('toast');
+        
+        let originalImage = null;
+        let convertedImageUrl = null;
+        
+        uploadArea.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) handleImageUpload(e.target.files[0]);
+        });
+        
+        widthInput.addEventListener('input', updateDimensions);
+        heightInput.addEventListener('input', updateDimensions);
+        
+        presetButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                widthInput.value = button.getAttribute('data-width');
+                heightInput.value = button.getAttribute('data-height');
+                presetButtons.forEach(btn => btn.classList.remove('active'));
+                button.classList.add('active');
+            });
+        });
+        
+        resetBtn.addEventListener('click', resetConverter);
+        convertBtn.addEventListener('click', convertImage);
+        downloadBtn.addEventListener('click', downloadImage);
+        
+        function handleImageUpload(file) {
+            if (!file.type.match('image.*') || file.size > 5 * 1024 * 1024) {
+                showToast('Please select a valid image under 5MB', 'error');
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                imagePreview.src = e.target.result;
+                imagePreview.style.display = 'block';
+                
+                originalImage = new Image();
+                originalImage.onload = function() {
+                    widthInput.value = originalImage.width;
+                    heightInput.value = originalImage.height;
+                    convertBtn.disabled = false;
+                    showToast('Image uploaded successfully!');
+                };
+                originalImage.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+        
+        function updateDimensions() {
+            if (!maintainRatio.checked || !originalImage) return;
+            
+            if (this === widthInput) {
+                const ratio = originalImage.height / originalImage.width;
+                heightInput.value = Math.round(widthInput.value * ratio);
+            } else {
+                const ratio = originalImage.width / originalImage.height;
+                widthInput.value = Math.round(heightInput.value * ratio);
+            }
+        }
+        
+        function convertImage() {
+            if (!originalImage) return;
+            
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const width = parseInt(widthInput.value);
+            const height = parseInt(heightInput.value);
+            
+            canvas.width = width;
+            canvas.height = height;
+            ctx.drawImage(originalImage, 0, 0, width, height);
+            
+            let mimeType = 'image/jpeg';
+            if (formatSelect.value === 'png') mimeType = 'image/png';
+            else if (originalImage.src.startsWith('data:image/png')) mimeType = 'image/png';
+            
+            convertedImageUrl = canvas.toDataURL(mimeType, 0.9);
+            imagePreview.src = convertedImageUrl;
+            downloadBtn.disabled = false;
+            showToast('Image converted successfully!');
+        }
+        
+        function downloadImage() {
+            if (!convertedImageUrl) return;
+            
+            const a = document.createElement('a');
+            a.href = convertedImageUrl;
+            let extension = formatSelect.value === 'png' ? 'png' : 'jpg';
+            a.download = `resized-image.${extension}`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            showToast('Image downloaded!');
+        }
+        
+        function resetConverter() {
+            fileInput.value = '';
+            imagePreview.style.display = 'none';
+            widthInput.value = '800';
+            heightInput.value = '600';
+            formatSelect.value = 'original';
+            convertBtn.disabled = true;
+            downloadBtn.disabled = true;
+            originalImage = null;
+            convertedImageUrl = null;
+            presetButtons.forEach(btn => btn.classList.remove('active'));
+            showToast('Converter reset');
+        }
+        
+        function showToast(message) {
+            toast.textContent = message;
+            toast.style.display = 'block';
+            setTimeout(() => { toast.style.display = 'none'; }, 3000);
+        }
+    </script>
+</body>
+</html>
